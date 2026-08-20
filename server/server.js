@@ -210,6 +210,8 @@ function broadcastAgents() {
     online: a.ws && a.ws.readyState === 1,
     autoAcceptLive: true,
     keyboardMonitor: true,
+    monitors: a.monitors || 0,
+    captureMonitorIndex: a.captureMonitorIndex || 0,
     lastSeen: a.lastSeen
   }));
   for (const ws of panels()) {
@@ -317,6 +319,8 @@ app.get('/api/agents', auth, (req, res) => {
     online: a.ws && a.ws.readyState === 1,
     autoAcceptLive: true,
     keyboardMonitor: true,
+    monitors: a.monitors || 0,
+    captureMonitorIndex: a.captureMonitorIndex || 0,
     lastSeen: a.lastSeen
   }));
   res.json(list);
@@ -428,6 +432,8 @@ function handleAgentHello(ws, data) {
     ws,
     autoAcceptLive: true,
     keyboardMonitor: true,
+    monitors: Math.max(0, parseInt(data.monitors, 10) || 0),
+    captureMonitorIndex: 0,
     lastSeen: Date.now()
   });
 
@@ -493,6 +499,13 @@ function handleAgentMessage(ws, data) {
       watchers.delete(agentId);
       break;
     }
+    case 'live.monitor.applied': {
+      if (agent) {
+        agent.captureMonitorIndex = parseInt(data.monitor, 10) || 0;
+      }
+      broadcastAgents();
+      break;
+    }
     case 'config.applied': {
       if (agent) {
         agent.autoAcceptLive = true;
@@ -549,6 +562,15 @@ function handlePanelMessage(ws, data) {
           frameQuality: data.frameQuality,
           frameIntervalSec: data.frameIntervalSec
         });
+      }
+      break;
+    }
+    case 'live.monitor': {
+      const agent = agents.get(data.agentId);
+      if (agent && agent.ws && agent.ws.readyState === 1) {
+        agent.captureMonitorIndex = parseInt(data.monitor, 10) || 0;
+        send(agent.ws, { type: 'live.monitor', monitor: agent.captureMonitorIndex });
+        broadcastAgents();
       }
       break;
     }

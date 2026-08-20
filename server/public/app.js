@@ -65,6 +65,10 @@ function handleMessage(msg) {
     case 'agents.updated':
       state.agents = msg.agents || [];
       renderAgents();
+      if (state.currentAgentId) {
+        const agent = state.agents.find((a) => a.id === state.currentAgentId);
+        if (agent) updateMonitorOptions(agent);
+      }
       break;
     case 'live.requesting':
       setLiveStatus('requesting', 'solicitando permiso...');
@@ -341,6 +345,31 @@ function sendLiveConfig() {
   state.ws.send(JSON.stringify({ type: 'live.config', agentId: state.currentAgentId, ...q }));
 }
 
+function sendLiveMonitor() {
+  if (!state.currentAgentId) return;
+  const monitor = parseInt($('liveMonitor').value, 10) || 0;
+  state.ws.send(JSON.stringify({ type: 'live.monitor', agentId: state.currentAgentId, monitor }));
+}
+
+function updateMonitorOptions(agent) {
+  const sel = $('liveMonitor');
+  const monitors = (agent && agent.monitors) || 1;
+  const current = (agent && agent.captureMonitorIndex) || 0;
+  const options = [{ value: '0', label: 'Todas' }];
+  for (let i = 1; i <= monitors; i++) {
+    options.push({ value: String(i), label: `Pantalla ${i}` });
+  }
+  sel.innerHTML = '';
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if (String(current) === o.value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.disabled = monitors <= 1;
+}
+
 function startLive(agentId, deviceName) {
   if (state.liveActive) closeLive();
   state.currentAgentId = agentId;
@@ -351,8 +380,11 @@ function startLive(agentId, deviceName) {
   $('livePlaceholder').classList.remove('hidden');
   setLiveStatus('requesting', 'solicitando permiso...');
   $('liveModal').classList.remove('hidden');
+  const agent = state.agents && state.agents.find((a) => a.id === agentId);
+  updateMonitorOptions(agent);
   state.ws.send(JSON.stringify({ type: 'live.start', agentId }));
   sendLiveConfig();
+  sendLiveMonitor();
 }
 
 function setLiveStatus(kind, text) {
@@ -408,5 +440,6 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 
 $('liveQuality').addEventListener('change', sendLiveConfig);
+$('liveMonitor').addEventListener('change', sendLiveMonitor);
 $('liveFullBtn').addEventListener('click', toggleFullscreen);
 $('liveCloseBtn').addEventListener('click', closeLive);
